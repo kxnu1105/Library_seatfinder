@@ -57,7 +57,33 @@ function itemsFrom(body) {
   return value && typeof value === 'object' ? [value] : [];
 }
 
-async function loadApi(stdgCd, endpoint, cacheStore, pendingStore) {
+async function loadApi(async function loadApi(
+  stdgCd,
+  endpoint,
+  cacheStore,
+  pendingStore,
+  forceRefresh = false
+) {
+  const key = process.env.DATA_GO_KR_SERVICE_KEY;
+  if (!key) {
+    const error = new Error('서버에 DATA_GO_KR_SERVICE_KEY 환경변수를 설정해야 합니다.');
+    error.status = 503;
+    throw error;
+  }
+
+  const now = Date.now();
+  const cached = cacheStore.get(stdgCd);
+
+  // 강제 새로고침이 아닐 때만 캐시 사용
+  if (!forceRefresh && cached && now < cached.expiresAt) {
+    return cached.payload;
+  }
+
+  if (pendingStore.has(stdgCd)) {
+    return pendingStore.get(stdgCd);
+  }
+
+  // 이 아래의 기존 코드는 그대로 유지) {
   const key = process.env.DATA_GO_KR_SERVICE_KEY;
   if (!key) {
     const error = new Error('서버에 DATA_GO_KR_SERVICE_KEY 환경변수를 설정해야 합니다.');
@@ -118,7 +144,13 @@ async function refreshAllDistricts(reason) {
   const results = await Promise.allSettled(monitoredDistricts.map(async stdgCd => {
     const [seats, libraries] = await Promise.all([
       loadApi(stdgCd, apiBase, cache, inFlight),
-      loadApi(stdgCd, libraryInfoBase, libraryInfoCache, libraryInfoInFlight),
+      loadApi(loadApi(
+  stdgCd,
+  apiBase,
+  cache,
+  inFlight,
+  stdgCd === '1126000000'
+),),
     ]);
     return { stdgCd, seats: seats.totalCount, libraries: libraries.totalCount };
   }));
